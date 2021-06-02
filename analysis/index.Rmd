@@ -8,4 +8,8 @@ editor_options:
   chunk_output_type: console
 ---
 
-Welcome to my research website.
+Welcome to my research website. In this website, I test the stuffs that I learn about R. It's a quick and easy way for me to access the codes that I might have forgotten. 
+
+Please feel free to use it as well.
+
+1. [Undersanding CRS and reprojecting raster and vector object to different CRS](210602_reprojecting_CRS.html)

@@ -1,0 +1,127 @@
+---
+title: "Understanding Coordinate referencing system and reprojecting vector and raster data"
+author: "himal2007"
+date: "2021-06-02"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+
+## Introduction
+
++ Loading libraries
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+library(leaflet)
+```
+
++ Function to find the epsg code and the UTM region for the geographic coordinates
+```{r}
+lonlat2UTM = function(lonlat) {
+  utm = (floor((lonlat[1] + 180) / 6) %% 60) + 1
+  if(lonlat[2] > 0) {
+    utm + 32600
+  } else{
+    utm + 32700
+  }
+}
+
+## example
+epsg_utm_metema <-  lonlat2UTM(c(36.28284, 13.00668))
+epsg_utm_metema
+st_crs(epsg_utm_metema)$proj4string
+```
+
++ Find more about the epsg code
+```{r}
+crs_codes = rgdal::make_EPSG()[1:4]
+dplyr::filter(crs_codes, code == 32637)
+st_crs(32637)$proj4string
+```
+
+### Transforming vector object to different CRS
++ Let's do this for the map of Ethiopia and also for the map of the world
+
+#### Lambert azimuthal equal area
+
++ Visualize the world map
+```{r}
+plot(st_geometry(world))
+st_crs(world)$proj4string
+```
+
++ Tranform the world map into lambert azimuthal projection
+```{r}
+world_laea1 = st_transform(world, 
+                           crs = "+proj=laea +x_0=0 +y_0=0 +lon_0=0 +lat_0=0")
+plot(st_geometry(world_laea1))
+st_crs(world_laea1)$proj4string
+```
+
++ Tranform the world map into lambert azimuthal projection with Ethiopian centroid
+
++ Find the centroid for Ethiopia
+```{r, message=FALSE}
+m <- getData(name = "GADM", country = "ETH", level = 0)
+m <- st_as_sf(m)
+st_centroid(m) # 39.6262 8.629764
+```
+
+```{r}
+world_laea2 = st_transform(world, 
+                           crs = "+proj=laea +x_0=0 +y_0=0 +lon_0=0 +lat_0=0")
+plot(st_geometry(world_laea2))
+st_crs(world_laea2)$proj4string
+```
+
+### Reprojecting raster
++ Get altitude data for Ethiopia
+
+```{r}
+alt_eth <- getData(name = "alt", country = "ETH", mask = T)
+crs(alt_eth)
+plot(alt_eth)
+```
+
+#### Reprojecting to UTM CRS
+```{r}
+utm <- "+init=epsg:32637"
+alt_eth_utm <- projectRaster(alt_eth, crs = utm, method = "bilinear")
+crs(alt_eth_utm)
+plot(alt_eth_utm)
+```
++ method should be `ngb` for categorical raster
+
+#### Reprojecting to Lambert Azimuthal Equal Area
+```{r}
+leaproj <- "+proj=laea +x_0=0 +y_0=0 +lon_0=39.62 +lat_0=8.62 +datum=WGS84 +units=km +no_defs" # you can set the unit to km
+
+alt_eth_lea <- projectRaster(alt_eth, crs = leaproj, method = "bilinear")
+crs(alt_eth_lea)
+plot(alt_eth_lea)
+```
+
++ Check the difference in the units of the coordinates
+
+
++ Reprojected rasters can be visualised with leaflet as well but the datum is discarded? I am not quite sure if the default projection is visualized or the tranformed projection.
+```{r}
+pal <- colorNumeric("RdYlBu", values(alt_eth_lea),
+                    na.color = "transparent"
+)
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addRasterImage(alt_eth_lea, colors = pal, opacity = 0.5) %>%
+  addLegend("bottomright",
+            pal = pal, values = values(alt_eth_lea),
+            title = "Altitude"
+  ) %>%
+  addScaleBar(position = c("bottomleft"))
+```
+
